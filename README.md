@@ -1,1067 +1,758 @@
-# x402 Protocol Implementation on Base
+# x402 Protocol on Base
 
-🚀 **Production-ready** implementation of Coinbase's **x402** micropayment protocol for monetizing APIs and web content with USDC on Base.
+🚀 **x402 micropayment protocol** - Monetize APIs with USDC on Base
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Next.js](https://img.shields.io/badge/Next.js-15.0-black)](https://nextjs.org/)
 [![Base](https://img.shields.io/badge/Base-Mainnet-blue)](https://base.org/)
+[![x402](https://img.shields.io/badge/x402-v1-purple)](https://docs.cdp.coinbase.com/x402/welcome)
 
 ---
 
 ## 📑 Table of Contents
 
+### Part 1: x402 RPC Endpoint (Production Service)
 - [What is x402?](#-what-is-x402)
-- [Features](#-features)
-- [Architecture](#-architecture)
-- [Quick Start](#-quick-start)
-- [Configuration Guide](#-configuration-guide)
-- [Protected Routes & Pricing](#-protected-routes--pricing)
+- [x402 RPC Endpoint](#-x402-rpc-endpoint---production-service)
+- [Endpoints](#-available-endpoints)
+- [Free RPC Methods](#-free-methods-21-methods)
+- [Paid RPC Methods](#-paid-methods-25-methods)
+- [Integration Examples](#-client-integration)
+- [RPC Pricing Details](#-pricing-details)
+
+### Part 2: Starter Kit (This Repository)
+- [About This Repository](#-about-this-repository-starter-kit)
+- [Installation](#-installation)
+- [Configuration](#-configuration)
+- [Protected Routes](#-protected-routes-in-this-repo)
 - [Testing](#-testing)
-- [Network Configuration](#-network-configuration)
-- [Payment Flow](#-payment-flow)
-- [Monitoring & Analytics](#-monitoring--analytics)
-- [Production Deployment](#-production-deployment)
-- [Troubleshooting](#-troubleshooting)
-- [API Reference](#-api-reference)
+- [Deployment](#-deployment)
+
+### General
 - [Resources](#-resources)
 
 ---
 
+# Part 1: x402 RPC Endpoint - Production Service
+
 ## 🎯 What is x402?
 
-x402 is a **payment protocol** developed by Coinbase that enables **pay-per-request monetization** of APIs and web content using USDC micropayments.
+x402 is a **payment protocol** developed by Coinbase that enables **pay-per-request monetization** using USDC micropayments.
 
-### Core Concepts
+### Key Features
 
-- **HTTP 402 Status Code**: "Payment Required" - A previously unused HTTP status code now used for micropayments
-- **EIP-3009**: `transferWithAuthorization` - Enables gasless USDC transfers via signatures
-- **On-chain Verification**: Payments verified on Base blockchain via Coinbase CDP
-- **Facilitator**: Intermediary service that verifies payments (x402.org or Coinbase CDP)
-
-### Why x402?
-
-✅ **Granular Monetization**: Pay per request, not monthly subscriptions  
-✅ **Developer-Friendly**: Works with existing clients (viem, ethers, web3.py)  
+✅ **Granular Monetization**: Pay per request, not subscriptions  
+✅ **Gasless Payments**: EIP-3009 signatures, no ETH needed  
+✅ **Developer-Friendly**: Works with viem, ethers, web3.py  
 ✅ **Low Cost**: Micropayments from $0.0001 to $1.00  
-✅ **Gasless for Users**: EIP-3009 signatures require no ETH  
 ✅ **Instant**: No waiting for confirmations  
-✅ **Secure**: Anti-replay, rate limiting, on-chain verification  
+✅ **Secure**: Anti-replay, on-chain verification  
 
 ---
 
-## ✨ Features
+## 🌐 x402 RPC Endpoint - Production Service
 
-This implementation includes:
+We operate a **production x402 JSON-RPC endpoint** on **Base Mainnet** with pay-per-request pricing.
 
-- ✅ **Next.js 15** application with App Router
-- ✅ **x402-next middleware** for automatic payment handling
-- ✅ **Protected routes** with configurable pricing
-- ✅ **EIP-3009 integration** for gasless payments
-- ✅ **Base network support** (Mainnet and Sepolia)
-- ✅ **React UI** with wallet connection
-- ✅ **TypeScript** for type safety
-- ✅ **Flexible configuration** via environment variables
+### 🔗 Available Endpoints
 
----
+| Endpoint | Description | Public |
+|----------|-------------|--------|
+| **`https://rpc.x402.vip/rpc`** | Main JSON-RPC endpoint | ✅ |
+| **`https://rpc.x402.vip/_health`** | Health check | ✅ |
+| **`https://rpc.x402.vip/_pricing`** | Full pricing list | ✅ |
+| **`https://rpc.x402.vip/metrics`** | Prometheus metrics | ✅ |
 
-## 🏗️ Architecture
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Client/User   │    │   Next.js App    │    │   Facilitator   │
-│   (Browser)     │    │   + x402 MW      │    │   (x402.org)    │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-         │ 1. GET /paid          │                       │
-         │──────────────────────▶│                       │
-         │                       │                       │
-         │ 2. HTTP 402           │                       │
-         │    + Challenge        │                       │
-         │◀──────────────────────│                       │
-         │                       │                       │
-         │ 3. Sign Payment       │                       │
-         │    (EIP-3009)         │                       │
-         │                       │                       │
-         │ 4. Retry + X-Payment  │ 5. Verify Payment     │
-         │──────────────────────▶│──────────────────────▶│
-         │                       │                       │
-         │                       │ 6. isValid: true      │
-         │                       │◀──────────────────────│
-         │                       │                       │
-         │ 7. HTTP 200           │                       │
-         │    + Content          │                       │
-         │◀──────────────────────│                       │
-```
-
-### Components
-
-1. **Next.js Application** - Your web app serving protected content
-2. **x402 Middleware** - Intercepts requests, enforces payments
-3. **Facilitator** - Verifies payments on-chain (x402.org or Coinbase CDP)
-4. **Base Blockchain** - Where USDC payments are verified
-5. **User's Wallet** - Signs payment authorizations (MetaMask, Coinbase Wallet, etc.)
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Node.js 18+ installed
-- Wallet with Base network configured
-- USDC on Base (for testing payments)
-- ETH on Base (small amount for any potential gas)
-
-### Installation
+### ⚡ Quick Test
 
 ```bash
-# Clone the repository
+# Health check
+curl -s https://rpc.x402.vip/_health | jq '.'
+
+# Free request (no payment)
+python3 -c "
+import json, urllib.request
+req = urllib.request.Request(
+    'https://rpc.x402.vip/rpc',
+    data=json.dumps({'jsonrpc':'2.0','id':1,'method':'eth_blockNumber','params':[]}).encode(),
+    headers={'content-type':'application/json'}
+)
+with urllib.request.urlopen(req) as r:
+    print(json.loads(r.read().decode()))
+"
+
+# Paid request (will return HTTP 402)
+python3 -c "
+import json, urllib.request, urllib.error
+req = urllib.request.Request(
+    'https://rpc.x402.vip/rpc',
+    data=json.dumps({'jsonrpc':'2.0','id':2,'method':'eth_getLogs','params':[{'address':'0x0000000000000000000000000000000000000000','fromBlock':'latest','toBlock':'latest'}]}).encode(),
+    headers={'content-type':'application/json'}
+)
+try:
+    urllib.request.urlopen(req)
+except urllib.error.HTTPError as e:
+    print(f'HTTP {e.code}')
+    print(json.loads(e.read().decode()))
+"
+```
+
+---
+
+## 🆓 Free Methods (21 methods)
+
+The following methods are **FREE** when querying the latest state:
+
+### Network Information
+- `web3_clientVersion`
+- `net_version`
+- `net_listening`
+- `eth_chainId`
+- `eth_syncing`
+
+### Block Information
+- `eth_blockNumber`
+- `eth_getBlockByNumber(latest, false)` - Latest block only, without full transactions
+- `eth_getBlockByHash(hash, false)` - Block by hash, without full transactions
+
+### Gas & Fees
+- `eth_gasPrice`
+- `eth_maxPriorityFeePerGas`
+- `eth_feeHistory` - Limited to ≤ 20 blocks
+- `eth_estimateGas`
+
+### Account State (latest only)
+- `eth_getBalance(address, "latest")`
+- `eth_getCode(address, "latest")`
+- `eth_getStorageAt(address, position, "latest")`
+- `eth_getTransactionCount(address, "latest")`
+- `eth_call(params, "latest")`
+
+### Transactions
+- `eth_getTransactionByHash`
+- `eth_getTransactionReceipt`
+- `eth_getTransactionByBlockNumberAndIndex`
+- `eth_getTransactionByBlockHashAndIndex`
+
+> **Note**: `"latest"` block tag is free. Historical queries (specific block numbers) are paid.
+
+---
+
+## 💰 Paid Methods (25+ methods)
+
+### Standard Paid Methods
+
+| Method | Price (USDC) | TTL | Description |
+|--------|--------------|-----|-------------|
+| **`eth_getLogs`** | **$0.005** | 60s | Event logs (requires `address` param, max 5000 blocks window) |
+| **`trace_block`** | **$0.020** | 300s | Full block trace |
+| **`trace_transaction`** | **$0.010** | 300s | Transaction trace |
+| **`trace_call`** | **$0.006** | 300s | Call trace |
+| **`eth_sendRawTransaction`** | **$0.0010** | 60s | Submit transaction |
+
+### Conditional Pricing (Historical Queries)
+
+These methods are **FREE for `"latest"`**, but **PAID for historical blocks**:
+
+| Method | Historical Price | Description |
+|--------|------------------|-------------|
+| `eth_getBalance(address, blockNumber)` | **$0.0010** | Balance at specific block |
+| `eth_getCode(address, blockNumber)` | **$0.0010** | Contract code at block |
+| `eth_getStorageAt(address, pos, block)` | **$0.0010** | Storage at block |
+| `eth_getTransactionCount(address, block)` | **$0.0010** | Nonce at block |
+| `eth_call(params, blockNumber)` | **$0.0010** | Call at specific block |
+
+### Full Transaction Data
+
+| Method | Price | Description |
+|--------|-------|-------------|
+| `eth_getBlockByNumber(num, true)` | **$0.0008** | Block with full transaction objects |
+| `eth_getBlockByHash(hash, true)` | **$0.0008** | Block with full transactions |
+
+> **Note**: Setting the second parameter to `false` (only transaction hashes) is free for latest block.
+
+### Filters & Subscriptions
+
+| Method | Initial Price | Recurring Cost | Description |
+|--------|---------------|----------------|-------------|
+| **`eth_newFilter`** | **$0.002** | **+$0.001/day** | Create new filter |
+| **`eth_getFilterChanges`** | **$0.0005** | per call | Get filter updates |
+| **`eth_getFilterLogs`** | **$0.001** | per call | Get all filter logs |
+| **`eth_subscribe`** | **$0.005** | **+$0.005/hour** | WebSocket subscription |
+| `eth_uninstallFilter` | **FREE** | - | Remove filter |
+| `eth_unsubscribe` | **FREE** | - | Unsubscribe |
+
+---
+
+## 🔌 Client Integration
+
+### Option 1: viem (Recommended)
+
+```javascript
+import { createPublicClient, http, createWalletClient } from "viem";
+import { base } from "viem/chains";
+import { privateKeyToAccount } from "viem/accounts";
+import { wrapFetchWithPayment } from "x402-fetch";
+
+const account = privateKeyToAccount(process.env.PRIVATE_KEY);
+const walletClient = createWalletClient({ 
+  account, 
+  chain: base, 
+  transport: http() 
+});
+
+// Wrap fetch to handle 402 payments automatically
+const fetchWithPayment = wrapFetchWithPayment(fetch, walletClient, { 
+  maxValue: "0.05"  // Max USDC per request
+});
+
+const client = createPublicClient({
+  chain: base,
+  transport: http("https://rpc.x402.vip/rpc", { fetch: fetchWithPayment }),
+});
+
+// Free method
+const blockNumber = await client.getBlockNumber();
+console.log("Current block:", blockNumber);
+
+// Paid method (will automatically pay if needed)
+const logs = await client.getLogs({
+  address: "0xYourContractAddress",
+  fromBlock: "latest",
+  toBlock: "latest"
+});
+console.log("Logs:", logs);  // Automatically paid $0.005
+```
+
+### Option 2: ethers.js v6
+
+```javascript
+import { JsonRpcProvider } from "ethers";
+import { createWalletClient, http } from "viem";
+import { base } from "viem/chains";
+import { privateKeyToAccount } from "viem/accounts";
+import { wrapFetchWithPayment } from "x402-fetch";
+
+const account = privateKeyToAccount(process.env.PRIVATE_KEY);
+const walletClient = createWalletClient({ 
+  account, 
+  chain: base, 
+  transport: http() 
+});
+
+// Override global fetch BEFORE creating provider
+globalThis.fetch = wrapFetchWithPayment(fetch, walletClient, { 
+  maxValue: "0.05" 
+});
+
+const provider = new JsonRpcProvider("https://rpc.x402.vip/rpc", 8453);
+
+// Free
+console.log(await provider.getBlockNumber());
+
+// Paid (automatically handled)
+console.log(await provider.getLogs({
+  address: "0xYourContract",
+  fromBlock: "latest",
+  toBlock: "latest"
+}));
+```
+
+### Option 3: Direct HTTP (Python)
+
+```python
+import json
+import urllib.request
+import urllib.error
+
+url = "https://rpc.x402.vip/rpc"
+
+# Free method
+data = {"jsonrpc": "2.0", "id": 1, "method": "eth_blockNumber", "params": []}
+req = urllib.request.Request(url, 
+    data=json.dumps(data).encode(),
+    headers={'content-type': 'application/json'})
+    
+with urllib.request.urlopen(req) as response:
+    result = json.loads(response.read().decode())
+    print(result)  # {"jsonrpc":"2.0","id":1,"result":"0x..."}
+
+# Paid method (will get HTTP 402)
+data = {"jsonrpc": "2.0", "id": 2, "method": "eth_getLogs", 
+        "params": [{"address": "0x...", "fromBlock": "latest", "toBlock": "latest"}]}
+        
+try:
+    req = urllib.request.Request(url, 
+        data=json.dumps(data).encode(),
+        headers={'content-type': 'application/json'})
+    urllib.request.urlopen(req)
+except urllib.error.HTTPError as e:
+    if e.code == 402:
+        challenge = json.loads(e.read().decode())
+        print(f"Payment required: {challenge['amount']} USDC")
+        print(f"Pay to: {challenge['accepts'][0]['payto']}")
+        # Implement payment logic here
+```
+
+---
+
+## 📊 Pricing Details
+
+### Price Structure
+
+- **Free tier**: Basic read operations on latest state
+- **Micro tier**: $0.0005 - $0.002 per call (simple queries)
+- **Standard tier**: $0.005 - $0.010 per call (logs, traces)
+- **Premium tier**: $0.010 - $0.020 per call (complex traces)
+- **Subscriptions**: Initial fee + hourly/daily recurring
+
+### Cost Examples
+
+**Typical usage** (1000 requests/day):
+- 900 free requests (eth_blockNumber, etc.) = **$0**
+- 100 eth_getLogs calls = **$0.50**
+- **Total**: **$0.50/day** = **~$15/month**
+
+**Heavy usage** (10,000 requests/day):
+- 5,000 free requests = **$0**
+- 3,000 eth_getLogs = **$15**
+- 2,000 historical queries = **$2**
+- **Total**: **$17/day** = **~$510/month**
+
+Compare to traditional RPC providers:
+- Alchemy: ~$50-200/month (subscription)
+- Infura: ~$50-200/month (subscription)
+- **x402 RPC**: Pay only what you use
+
+---
+
+## 🛡️ RPC Features
+
+### Security & Reliability
+
+- ✅ **Rate Limiting**: 25 requests/second per API key
+- ✅ **Anti-Replay**: LRU cache prevents duplicate payments
+- ✅ **Guardrails**: `eth_getLogs` requires `address`, max 5000 blocks
+- ✅ **Body Limits**: Max 2 MiB per request, max 10 batch requests
+- ✅ **TLS/HTTPS**: Caddy with Let's Encrypt
+- ✅ **Uptime**: 99.9% SLA target
+
+### Observability
+
+- **Metrics**: Prometheus at `/metrics`
+- **Logs**: Structured JSON logging (Pino)
+- **Health**: Real-time status at `/_health`
+
+### Response Headers
+
+Every response includes:
+```
+ratelimit-policy: 25;w=1
+ratelimit-limit: 25
+ratelimit-remaining: 24
+ratelimit-reset: 60
+x-payment-response: <base64>  # If payment was made
+```
+
+---
+
+## 🔍 RPC Method Details
+
+### eth_getLogs (Paid: $0.005)
+
+**Requirements**:
+- ✅ `address` parameter is **required**
+- ✅ Block window ≤ 5000 blocks
+- ❌ Returns `400 address_required` if address missing
+- ❌ Returns `400 window_too_large` if window > 5000
+
+**Example**:
+```javascript
+await client.getLogs({
+  address: "0xContractAddress",  // Required
+  fromBlock: 1000000n,
+  toBlock: 1001000n,  // Max 5000 blocks from fromBlock
+  topics: [...]
+});
+// Cost: $0.005 USDC
+```
+
+### trace_block (Paid: $0.020)
+
+Full trace of all transactions in a block.
+
+```javascript
+// Using web3.py or direct HTTP
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "trace_block",
+  "params": ["0x1234"]  // Block number in hex
+}
+// Cost: $0.020 USDC
+```
+
+### trace_transaction (Paid: $0.010)
+
+Trace a specific transaction.
+
+```javascript
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "trace_transaction",
+  "params": ["0xTransactionHash"]
+}
+// Cost: $0.010 USDC
+```
+
+### Historical Queries (Paid: $0.0010 each)
+
+When using specific block numbers instead of `"latest"`:
+
+```javascript
+// Free
+await client.getBalance({ 
+  address: "0x...", 
+  blockTag: "latest" 
+});
+
+// Paid $0.0010
+await client.getBalance({ 
+  address: "0x...", 
+  blockNumber: 1000000n 
+});
+```
+
+---
+
+## 📖 Complete Method List
+
+### Free Methods (21)
+
+```
+web3_clientVersion
+net_version
+net_listening
+eth_chainId
+eth_blockNumber
+eth_gasPrice
+eth_maxPriorityFeePerGas
+eth_feeHistory (≤20 blocks)
+eth_syncing
+eth_estimateGas
+eth_getBalance (latest only)
+eth_getCode (latest only)
+eth_getStorageAt (latest only)
+eth_getTransactionCount (latest only)
+eth_call (latest only)
+eth_getBlockByNumber (latest, false)
+eth_getBlockByHash (tip, false)
+eth_getTransactionByHash
+eth_getTransactionReceipt
+eth_getTransactionByBlockNumberAndIndex
+eth_getTransactionByBlockHashAndIndex
+```
+
+### Paid Methods (25+)
+
+| Method | Price | Notes |
+|--------|-------|-------|
+| `eth_getLogs` | $0.005 | Requires address, ≤5000 blocks |
+| `trace_block` | $0.020 | Full block trace |
+| `trace_transaction` | $0.010 | Transaction trace |
+| `trace_call` | $0.006 | Call trace |
+| `eth_sendRawTransaction` | $0.0010 | Submit transaction |
+| `eth_getBalance (historical)` | $0.0010 | Specific block number |
+| `eth_getCode (historical)` | $0.0010 | Code at block |
+| `eth_getStorageAt (historical)` | $0.0010 | Storage at block |
+| `eth_getTransactionCount (historical)` | $0.0010 | Nonce at block |
+| `eth_call (historical)` | $0.0010 | Call at specific block |
+| `eth_getBlockByNumber (full tx)` | $0.0008 | Full transaction objects |
+| `eth_getBlockByHash (full tx)` | $0.0008 | Full transactions |
+| `eth_newFilter` | $0.002 + $0.001/day | Create filter |
+| `eth_getFilterChanges` | $0.0005 | Poll filter |
+| `eth_getFilterLogs` | $0.001 | Get all logs |
+| `eth_subscribe` | $0.005 + $0.005/hour | WebSocket subscription |
+| `eth_uninstallFilter` | FREE | Remove filter |
+| `eth_unsubscribe` | FREE | Unsubscribe |
+
+---
+
+## 🚨 Error Codes
+
+| HTTP Code | Error Key | Description |
+|-----------|-----------|-------------|
+| 400 | `invalid_request` | Invalid JSON or missing method |
+| 400 | `address_required` | `eth_getLogs` without address |
+| 400 | `window_too_large` | `eth_getLogs` window > 5000 blocks |
+| 401 | `invalid_api_key` | API key missing/invalid (if enabled) |
+| 402 | *(challenge)* | Payment required |
+| 400 | `invalid_payment` | Payment verification failed |
+| 409 | `receipt_already_used` | Payment already consumed (anti-replay) |
+| 413 | `batch_too_large` | Batch > 10 requests |
+| 403 | `method_not_allowed` | Method explicitly disabled |
+| 500 | `internal_error` | Server error |
+
+---
+
+## 🔐 RPC Security
+
+### Rate Limiting
+- **25 requests/second** per API key (or IP if no key)
+- Exposed via headers: `ratelimit-*`
+
+### Anti-Replay
+- Each payment has unique `requestHash`
+- LRU cache (1 hour TTL) prevents reuse
+- Returns `409 receipt_already_used` on duplicate
+
+### Guardrails
+- Request body ≤ 2 MiB
+- Batch requests ≤ 10 items
+- `eth_getLogs` requires `address` parameter
+- `eth_getLogs` block window ≤ 5000
+
+---
+
+# Part 2: About This Repository (Starter Kit)
+
+## 📦 What is This Repo?
+
+This is a **starter template** showing how to build your own x402-powered application. It's the same architecture we use for our production RPC endpoint.
+
+### What You Get
+
+- ✅ Working Next.js 15 application
+- ✅ Pre-configured x402 middleware
+- ✅ Example protected routes (page + API)
+- ✅ Wallet integration
+- ✅ Ready to deploy
+
+### What It's NOT
+
+- ❌ Not a full RPC endpoint (that's our production service above)
+- ❌ Not a complete app (it's a template/starter)
+- ❌ Not production-ready without customization
+
+**Use this repo to**: Learn x402, build your own paid API, create paid content sites
+
+---
+
+## 🚀 Installation
+
+```bash
+# Clone
 git clone <your-repo-url>
 cd x402
 
 # Install dependencies
 npm install
 
-# Copy environment template
+# Configure
 cp env.example .env.local
-
-# Edit .env.local with your receiver address
-# RECEIVER_ADDRESS=0xYourAddressHere
+# Edit .env.local with your address
 ```
 
-### Running the App 
+## ⚙️ Configuration
 
-WARNING: It's only a test app for those who want to try on Base Sepolia before Mainnet!
+### 1. Set Your Receiver Address
 
-```bash
-# Development mode
-npm run dev
-
-# Production build
-npm run build
-npm start
-```
-
-Visit `http://localhost:3000` to see the app.
-
----
-
-## ⚙️ Configuration Guide
-
-### Environment Variables
-
-Create `.env.local` from `env.example`:
-
-```bash
-# Required: Address that receives USDC payments
-RECEIVER_ADDRESS=0x742d35Cc6634C0532925a3b8D0c8f5F4d4fD8000
-
-# Network: 'base' for mainnet, 'base-sepolia' for testnet
-NETWORK=base
-
-# Optional: Override default prices
-API_PRICE=$0.01
-PAGE_PRICE=$0.05
-
-# Optional: Custom facilitator
-FACILITATOR_URL=https://x402.org/facilitator
-
-# Next.js public variables
-NEXT_PUBLIC_NETWORK=base
-NEXT_PUBLIC_CHAIN_ID=8453
-```
-
-### Middleware Configuration
-
-Edit `middleware.ts` to configure protected routes:
-
+Edit `middleware.ts`:
 ```typescript
-import { paymentMiddleware } from 'x402-next';
+const RECEIVER_ADDRESS = '0xYourWalletAddress';
+```
 
-const RECEIVER_ADDRESS = process.env.RECEIVER_ADDRESS || '0xYourAddress';
+### 2. Choose Network
 
-export const config = {
-  matcher: ['/api/paid/:path*', '/paid/:path*'],  // Routes to protect
-};
+**For Testing (Recommended First)**:
+```typescript
+network: 'base-sepolia',  // Free test funds
+```
 
-export default paymentMiddleware(
-  RECEIVER_ADDRESS,  // Your wallet address
-  {
-    // Configure each protected route
-    '/api/paid': {
-      price: '$0.01',           // Price in USD
-      network: 'base',          // 'base' or 'base-sepolia'
-      config: { 
-        description: 'Paid API access',
-        title: 'x402 Premium API'
-      },
-    },
-    '/paid': {
-      price: '$0.05',
-      network: 'base',
-      config: { 
-        description: 'x402 protected page',
-        title: 'Premium Content'
-      },
-    },
-  },
-  {
-    // Facilitator configuration
-    url: 'https://x402.org/facilitator',  // Public facilitator
-    timeout: 30000,  // 30 seconds
-  }
-);
+**For Production**:
+```typescript
+network: 'base',  // Real USDC
+```
+
+### 3. Configure Wallet Connection
+
+Edit `app/page.tsx` to match your network:
+
+**Mainnet**:
+```typescript
+chainId: '0x2105',  // 8453
+chainName: 'Base Mainnet',
+```
+
+**Testnet**:
+```typescript
+chainId: '0x14a34',  // 84532
+chainName: 'Base Sepolia',
 ```
 
 ---
 
-## 💰 Protected Routes & Pricing
+## 💎 Protected Routes in This Repo
 
-This implementation includes **2 protected routes** with different pricing models:
+This starter includes **2 example routes**:
 
-### 1. Protected Web Page (`/paid`)
+### Route 1: `/paid` (Web Page)
+- **Price**: $0.05 USDC
+- **Type**: HTML page
+- **Use case**: Premium articles, content, tutorials
 
-**Route**: `/paid`  
-**Method**: `GET`  
-**Price**: **$0.05 USDC**  
-**Network**: Base Mainnet  
-**Description**: Premium content page  
+### Route 2: `/api/paid` (API)
+- **Price**: $0.01 USDC
+- **Methods**: GET, POST
+- **Use case**: Paid API endpoints
 
-**What it does**:
-- Displays premium content after payment
-- Shows technical information about x402
-- Includes interactive API testing interface
-- Demonstrates complete payment flow
-
-**Use case**: Monetize articles, tutorials, premium content
-
----
-
-### 2. Protected API Endpoint (`/api/paid`)
-
-**Route**: `/api/paid`  
-**Methods**: `GET`, `POST`  
-**Price**: **$0.01 USDC**  
-**Network**: Base Mainnet  
-**Description**: Paid API access  
-
-**GET Response** (after payment):
-```json
-{
-  "message": "🎉 Congratulations! You have access to premium data",
-  "secret": "The answer to everything is 42",
-  "timestamp": "2025-10-15T10:30:00.000Z",
-  "network": "Base Sepolia",
-  "protocol": "x402",
-  "price_paid": "$0.01 USDC",
-  "premium_data": {
-    "crypto_tip": "HODL responsibly 🚀",
-    "market_insight": "Crypto micropayments will revolutionize the web",
-    "tech_fact": "x402 uses EIP-3009 for transfer signatures"
-  }
-}
-```
-
-**POST Endpoint** (after payment):
-```json
-{
-  "message": "📝 Data received and processed successfully",
-  "received": { /* your posted data */ },
-  "timestamp": "2025-10-15T10:30:00.000Z",
-  "status": "processed_with_payment"
-}
-```
-
-**Use case**: Monetize API calls, AI inference, data processing, premium features
-
----
-
-## 🔧 Customizing Routes & Pricing
-
-### Add a New Protected Route
-
-```typescript
-// In middleware.ts, add to the routes object:
-'/api/premium-feature': {
-  price: '$0.25',              // Price per request
-  network: 'base',             // Network
-  config: { 
-    description: 'Premium AI feature',
-    title: 'AI Analysis API'
-  },
-},
-```
-
-Then create the handler:
-
-```typescript
-// app/api/premium-feature/route.ts
-import { NextResponse } from 'next/server';
-
-export async function POST(request: Request) {
-  const body = await request.json();
-  
-  // Your premium logic here
-  const result = await performExpensiveOperation(body);
-  
-  return NextResponse.json({ result });
-}
-```
-
-### Pricing Tiers
-
-Recommended pricing based on resource cost:
-
-| Resource Type | Suggested Price | Example Use Case |
-|--------------|-----------------|------------------|
-| Simple query | $0.001 - $0.01 | Database lookup, simple API call |
-| Medium computation | $0.01 - $0.10 | Data processing, analytics |
-| Heavy computation | $0.10 - $1.00 | AI inference, complex analysis |
-| Content access | $0.05 - $0.50 | Articles, videos, premium content |
-| File download | $0.50 - $5.00 | Reports, datasets, media files |
-
-### Dynamic Pricing
-
-You can implement dynamic pricing based on request parameters:
-
-```typescript
-// Note: x402-next doesn't support dynamic pricing natively yet
-// You'll need to implement custom logic or use multiple routes
-
-// Example: Different prices for different tiers
-'/api/tier1': { price: '$0.01', ... },
-'/api/tier2': { price: '$0.05', ... },
-'/api/tier3': { price: '$0.25', ... },
-```
+**Customize these** or add your own in `middleware.ts`!
 
 ---
 
 ## 🧪 Testing
 
-### Prerequisites for Testing
+### Quick Test (Browser)
 
-**Option A: Mainnet (Real Money)**
-- ETH on Base (for gas) - Get via [Base Bridge](https://bridge.base.org)
-- USDC on Base (for payments) - Get via [Bridge](https://bridge.base.org) or [Coinbase](https://www.coinbase.com)
-- Set `network: 'base'` in `middleware.ts`
+1. **Start server**: `npm run dev`
+2. **Visit**: `http://localhost:3000/paid`
+3. **Connect wallet** when prompted
+4. **Sign payment** (0.05 USDC)
+5. **See content** after payment
 
-**Option B: Testnet (Free)**
-- Test ETH on Base Sepolia - Get from [faucets](https://docs.base.org/tools/network-faucets)
-- Test USDC on Base Sepolia - Get from [Circle Faucet](https://faucet.circle.com)
-- Set `network: 'base-sepolia'` in `middleware.ts`
-
-### Test Scenario 1: Protected Web Page
-
-1. **Start the server**
-   ```bash
-   npm run dev
-   ```
-
-2. **Navigate to protected page**
-   ```
-   http://localhost:3000/paid
-   ```
-
-3. **Expected behavior**:
-   - Page loads, triggers x402 middleware
-   - HTTP 402 response with payment challenge
-   - Wallet opens automatically (MetaMask/Coinbase Wallet)
-   - Sign the payment authorization (no gas needed)
-   - Payment verified on-chain
-   - Page content displays
-
-4. **What to verify**:
-   - ✅ Wallet signature popup appears
-   - ✅ Payment amount shows 0.05 USDC
-   - ✅ Network is Base Mainnet (or Sepolia if testing)
-   - ✅ After signing, content appears
-   - ✅ Check your receiver address got the USDC
-
-### Test Scenario 2: Protected API Endpoint
-
-1. **From the `/paid` page, click "Test Paid API"**
-
-2. **Expected behavior**:
-   - Fetch request to `/api/paid`
-   - HTTP 402 challenge
-   - Wallet signature for 0.01 USDC
-   - API responds with JSON data
-
-3. **Verify the response**:
-   ```json
-   {
-     "message": "🎉 Congratulations! You have access to premium data",
-     "secret": "The answer to everything is 42",
-     "premium_data": { ... }
-   }
-   ```
-
-### Test Scenario 3: Direct API Call
-
-Test the API without the UI:
+### API Test (Terminal)
 
 ```bash
-# Without payment (should return 402)
+# Should return 402
 curl -v http://localhost:3000/api/paid
 ```
 
-**Expected response**:
-```
-HTTP/1.1 402 Payment Required
-Content-Type: application/json
+---
 
-{
-  "x402Version": 1,
-  "error": "X-PAYMENT header is required",
-  "accepts": [
-    {
-      "scheme": "exact",
-      "network": "base",
-      "maxAmountRequired": "10000",
-      "resource": "http://localhost:3000/api/paid",
-      "description": "Paid API access",
-      "mimeType": "application/json",
-      "payTo": "0x742D35cc6634C0532925A3B8d0c8f5f4d4FD8000",
-      "maxTimeoutSeconds": 300,
-      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-      "outputSchema": {
-        "input": {
-          "type": "http",
-          "method": "GET",
-          "discoverable": true
-        }
-      },
-      "extra": {
-        "name": "USDC",
-        "version": "2"
-      }
-    }
-  ]
-}
-```
+## 🌍 Deployment
 
-### Test Scenario 4: POST Request
+### Deploy to Vercel (Recommended)
 
 ```bash
-# POST to protected API
-curl -X POST http://localhost:3000/api/paid \
-  -H 'Content-Type: application/json' \
-  -d '{"test": "data"}'
+# Install Vercel CLI
+npm i -g vercel
+
+# Deploy
+vercel
+
+# Set environment variables in Vercel dashboard
+# RECEIVER_ADDRESS=0xYourAddress
 ```
 
-**Expected**: HTTP 402, then after payment:
-```json
-{
-  "message": "📝 Data received and processed successfully",
-  "received": { "test": "data" },
-  "timestamp": "2025-10-15T...",
-  "status": "processed_with_payment"
-}
-```
-
----
-
-## 🌐 Network Configuration
-
-### Mainnet Configuration (Production)
-
-**Use this for production with real money**
-
-#### middleware.ts
-```typescript
-network: 'base',  // Base Mainnet
-```
-
-#### app/page.tsx (Wallet connection)
-```typescript
-chainId: '0x2105',  // 8453 in hex
-chainName: 'Base Mainnet',
-rpcUrls: ['https://mainnet.base.org'],
-blockExplorerUrls: ['https://basescan.org'],
-```
-
-#### Network Details
-- **Chain ID**: 8453 (0x2105 in hex)
-- **RPC**: https://mainnet.base.org
-- **Explorer**: https://basescan.org
-- **USDC Contract**: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
-- **Currency**: Real ETH and USDC
-
-### Testnet Configuration (Development)
-
-**Use this for testing with free funds**
-
-#### middleware.ts
-```typescript
-network: 'base-sepolia',  // Base Sepolia Testnet
-```
-
-#### app/page.tsx (Wallet connection)
-```typescript
-chainId: '0x14a34',  // 84532 in hex
-chainName: 'Base Sepolia',
-rpcUrls: ['https://sepolia.base.org'],
-blockExplorerUrls: ['https://sepolia.basescan.org'],
-```
-
-#### Network Details
-- **Chain ID**: 84532 (0x14a34 in hex)
-- **RPC**: https://sepolia.base.org
-- **Explorer**: https://sepolia.basescan.org
-- **USDC Contract**: `0x036CbD53842c5426634e7929541eC2318f3dCF7e`
-- **Currency**: Test ETH and USDC (free from faucets)
-
-#### Getting Test Funds
-
-1. **Test ETH (for gas)**:
-   - [Base Sepolia Faucet](https://docs.base.org/tools/network-faucets)
-   - [Alchemy Faucet](https://www.alchemy.com/faucets/base-sepolia)
-
-2. **Test USDC (for payments)**:
-   - [Circle USDC Faucet](https://faucet.circle.com) - Select "Base Sepolia"
-
----
-
-## 💳 Payment Flow Explained
-
-### Step-by-Step Flow
-
-1. **User requests protected content**
-   ```
-   GET /paid
-   ```
-
-2. **Middleware detects no payment**
-   - Checks for `X-Payment` header
-   - Not found → Generate payment challenge
-
-3. **Server returns HTTP 402**
-   ```json
-   {
-     "x402Version": 1,
-     "amount": "0.05",
-     "network": "base",
-     "token": "USDC",
-     "requestHash": "abc123...",
-     "accepts": [{ ... }]
-   }
-   ```
-
-4. **Client signs payment**
-   - User's wallet opens
-   - EIP-3009 `transferWithAuthorization` signature
-   - No gas required (signature only)
-
-5. **Client retries with payment**
-   ```
-   GET /paid
-   X-Payment: <base64-encoded-payment-data>
-   ```
-
-6. **Middleware verifies payment**
-   - Sends payment to facilitator
-   - Facilitator checks on-chain
-   - Returns `isValid: true/false`
-
-7. **Content delivered**
-   - If valid: HTTP 200 + protected content
-   - If invalid: HTTP 400 + error message
-
-### Payment Challenge Fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `x402Version` | number | Protocol version (currently 1) |
-| `payment` | string | Payment type ("x402") |
-| `scheme` | string | Payment scheme ("onchain") |
-| `network` | string | Blockchain network ("base", "base-sepolia") |
-| `token` | string | Payment token ("USDC") |
-| `amount` | string | Required amount in USDC ("0.05") |
-| `description` | string | What the payment is for |
-| `requestHash` | string | Unique hash tying payment to this request |
-| `ttl` | number | Time to live in seconds (300) |
-| `accepts` | array | Payment options with details |
-
-### Payment Headers
-
-**Request Headers (Client → Server)**:
-- `X-Payment: <base64>` - Payment authorization data
-- Alternative: `X-402-Receipt: <base64>` or `Authorization: X402 <base64>`
-
-**Response Headers (Server → Client)**:
-- `X-Payment-Response: <base64>` - Payment verification details
-- Includes: payer address, amount, timestamp
-
----
-
-## 📊 Monitoring & Analytics
-
-### Server Logs
-
-The application logs payment events:
+### Deploy to Railway
 
 ```bash
-✅ x402 payment validated for /api/paid
-✅ POST payment validated for /api/paid
+# Install Railway CLI
+npm i -g railway
+
+# Login and deploy
+railway login
+railway init
+railway up
 ```
 
-### Monitoring Payments
+### Environment Variables (Production)
 
-#### On Mainnet
-1. Visit [BaseScan](https://basescan.org)
-2. Search for your `RECEIVER_ADDRESS`
-3. Filter for USDC transfers
-4. Each payment will show:
-   - Payer address
-   - Amount (0.01 or 0.05 USDC)
-   - Timestamp
-   - Transaction hash
-
-#### On Testnet
-Same process on [Base Sepolia Explorer](https://sepolia.basescan.org)
-
-### Analytics Ideas
-
-Track in your application:
-- Total payments received
-- Most popular endpoints
-- Payment success/failure rates
-- Average revenue per user
-- Geographic distribution (via IP)
-
----
-
-## 🔐 Production Deployment
-
-### Deployment Checklist
-
-- [ ] **Environment Setup**
-  - [ ] Set `RECEIVER_ADDRESS` to your production wallet
-  - [ ] Configure `network: 'base'` for mainnet
-  - [ ] Set production facilitator (optional: CDP)
-  - [ ] Never commit `.env.local`
-
-- [ ] **Security**
-  - [ ] Enable HTTPS/TLS
-  - [ ] Implement rate limiting
-  - [ ] Set up CORS properly
-  - [ ] Monitor for abuse patterns
-  - [ ] Backup payment logs
-
-- [ ] **Testing**
-  - [ ] Test on Base Sepolia first
-  - [ ] Test with small mainnet amounts
-  - [ ] Verify payment reception
-  - [ ] Test all protected routes
-  - [ ] Load testing
-
-- [ ] **Monitoring**
-  - [ ] Set up error tracking (Sentry, etc.)
-  - [ ] Monitor payment failures
-  - [ ] Track revenue metrics
-  - [ ] Alert on downtime
-
-### Recommended Stack
-
-**Hosting**:
-- [Vercel](https://vercel.com) - Optimal for Next.js
-- [Railway](https://railway.app) - Simple deployment
-- [Fly.io](https://fly.io) - Global edge deployment
-
-**Domain & SSL**:
-- Custom domain with HTTPS
-- Vercel provides automatic SSL
-
-**Monitoring**:
-- [Sentry](https://sentry.io) - Error tracking
-- [LogRocket](https://logrocket.com) - Session replay
-- [Axiom](https://axiom.co) - Log management
-
-### Using Coinbase CDP Facilitator (Recommended)
-
-For production with compliance features (KYT/OFAC):
-
-1. **Get CDP API Keys**:
-   - Sign up at [Coinbase Developer Platform](https://portal.cdp.coinbase.com/)
-   - Create a new project
-   - Generate API keys
-
-2. **Update middleware.ts**:
-   ```typescript
-   export default paymentMiddleware(
-     RECEIVER_ADDRESS,
-     routeConfig,
-     {
-       url: 'https://facilitator.cdp.coinbase.com',
-       apiKey: process.env.CDP_API_KEY,
-       apiSecret: process.env.CDP_API_SECRET,
-     }
-   );
-   ```
-
-3. **Add to .env.local**:
-   ```bash
-   CDP_API_KEY=your-api-key
-   CDP_API_SECRET=your-api-secret
-   ```
-
----
-
-## 🛠️ Troubleshooting
-
-### Common Issues & Solutions
-
-#### "Insufficient funds"
-
-**Symptom**: Payment fails with insufficient balance error
-
-**Solutions**:
-- **Mainnet**: Ensure you have USDC on Base
-  - Check balance: [BaseScan](https://basescan.org)
-  - Bridge more: [Base Bridge](https://bridge.base.org)
-  
-- **Testnet**: Get test USDC
-  - [Circle Faucet](https://faucet.circle.com) (select Base Sepolia)
-
-#### "Transaction failed" or "Gas estimation failed"
-
-**Symptom**: Transaction fails during signing
-
-**Solutions**:
-- Ensure you have ETH on Base for gas (even though EIP-3009 is gasless, some wallets may check)
-- Switch to correct network (Base Mainnet vs Sepolia)
-- Try again after a few seconds
-
-#### "Payment not verified"
-
-**Symptom**: Payment signed but content not unlocked
-
-**Solutions**:
-- Check middleware logs for errors
-- Verify `RECEIVER_ADDRESS` is correct
-- Ensure facilitator is responding (check `/_health`)
-- Verify wallet is on correct network
-- Check USDC contract address matches network
-
-#### "Wrong network"
-
-**Symptom**: Wallet on different chain than configured
-
-**Solutions**:
-- Click "Connect Wallet" on home page to auto-switch
-- Manually switch in wallet to Base Mainnet (Chain ID: 8453)
-- Or Base Sepolia (Chain ID: 84532) for testing
-
-#### "Module not found: x402-next"
-
-**Symptom**: Build fails with missing module
-
-**Solutions**:
-```bash
-# Reinstall dependencies
-rm -rf node_modules package-lock.json
-npm install
-
-# Ensure Next.js 15+
-npm list next
-```
-
-### Debug Mode
-
-Enable verbose logging:
+Set these in your hosting provider:
 
 ```bash
-# Set debug environment variable
-DEBUG=x402:* npm run dev
-
-# Or in .env.local
-DEBUG=x402:*
-```
-
-This will show:
-- Payment challenge generation
-- Payment verification requests
-- Facilitator responses
-- Middleware decisions
-
----
-
-## 📖 API Reference
-
-### Payment Middleware
-
-```typescript
-paymentMiddleware(
-  receiverAddress: string,
-  routes: RouteConfig,
-  options?: FacilitatorOptions
-)
-```
-
-**Parameters**:
-
-#### `receiverAddress` (required)
-- Type: `string`
-- Your Ethereum address that receives USDC
-- Example: `'0x742d35Cc6634C0532925a3b8D0c8f5F4d4fD8000'`
-
-#### `routes` (required)
-- Type: `Record<string, RouteConfig>`
-- Object mapping route paths to payment configurations
-
-**RouteConfig**:
-```typescript
-{
-  price: string,           // Price in USD: '$0.01', '$1.00', etc.
-  network: string,         // 'base' | 'base-sepolia'
-  config: {
-    description: string,   // What this payment is for
-    title: string,         // Display title
-  }
-}
-```
-
-#### `options` (optional)
-- Type: `FacilitatorOptions`
-
-```typescript
-{
-  url: string,             // Facilitator URL
-  timeout?: number,        // Request timeout (ms)
-  apiKey?: string,         // CDP API key (if using CDP facilitator)
-  apiSecret?: string,      // CDP API secret
-}
-```
-
-### Matcher Configuration
-
-```typescript
-export const config = {
-  matcher: [
-    '/api/paid/:path*',    // Protects /api/paid and all sub-paths
-    '/paid/:path*',        // Protects /paid and all sub-paths
-  ],
-};
-```
-
-**Matcher patterns**:
-- `/exact` - Exact path only
-- `/path/:param` - With parameter
-- `/path*` - Path and everything after
-- `/path/:param*` - Parameter and sub-paths
-
-### Response Types
-
-#### Successful Payment (HTTP 200)
-```typescript
-{
-  // Your API response
-}
-```
-
-#### Payment Required (HTTP 402)
-```typescript
-{
-  x402Version: 1,
-  payment: "x402",
-  scheme: "onchain",
-  network: "base" | "base-sepolia",
-  token: "USDC",
-  amount: string,
-  description: string,
-  requestHash: string,
-  ttl: number,
-  accepts: Array<AcceptOption>
-}
-```
-
-#### Payment Invalid (HTTP 400)
-```typescript
-{
-  error: "invalid_payment",
-  message: string
-}
+RECEIVER_ADDRESS=0xYourProductionAddress
+NETWORK=base  # For mainnet
+NEXT_PUBLIC_NETWORK=base
+NEXT_PUBLIC_CHAIN_ID=8453
 ```
 
 ---
 
-## 💡 Use Cases & Examples
+## 🔧 Customization Guide
 
-### Use Case 1: AI API Monetization
+### Add Your Own Protected Route
 
+1. **Add to `middleware.ts`**:
 ```typescript
-'/api/ai/generate': {
-  price: '$0.10',
-  network: 'base',
-  config: { 
-    description: 'AI text generation',
-    title: 'GPT-4 API Access'
-  },
-},
-```
-
-### Use Case 2: Premium Content
-
-```typescript
-'/articles/premium/:id': {
+'/api/my-feature': {
   price: '$0.25',
   network: 'base',
   config: { 
-    description: 'Premium article access',
-    title: 'Premium Content'
+    description: 'My premium feature',
+    title: 'Custom API'
   },
 },
 ```
 
-### Use Case 3: Data Analytics
-
+2. **Create handler** `app/api/my-feature/route.ts`:
 ```typescript
-'/api/analytics/report': {
-  price: '$0.50',
-  network: 'base',
-  config: { 
-    description: 'Analytics report generation',
-    title: 'Analytics API'
-  },
-},
-```
+import { NextResponse } from 'next/server';
 
-### Use Case 4: File Downloads
-
-```typescript
-'/api/download/:fileId': {
-  price: '$1.00',
-  network: 'base',
-  config: { 
-    description: 'File download access',
-    title: 'File Access'
-  },
-},
-```
-
----
-
-## 🔒 Security Considerations
-
-### Anti-Replay Protection
-
-The x402 middleware includes built-in anti-replay:
-- Each payment is tied to a unique `requestHash`
-- Payments can only be used once
-- TTL limits payment validity window
-
-### Rate Limiting
-
-Consider adding rate limiting:
-
-```typescript
-// Example with next-rate-limit
-import rateLimit from 'next-rate-limit';
-
-const limiter = rateLimit({
-  interval: 60 * 1000, // 1 minute
-  uniqueTokenPerInterval: 500,
-});
-
-export async function GET(request: Request) {
-  await limiter.check(request, 10, 'CACHE_TOKEN');
-  // Your handler...
+export async function GET() {
+  // Your logic here
+  return NextResponse.json({ 
+    data: "Premium content" 
+  });
 }
 ```
 
-### CORS Configuration
-
-Already included in `next.config.js`:
-
-```javascript
-async headers() {
-  return [{
-    source: '/api/(.*)',
-    headers: [
-      { key: 'Access-Control-Allow-Origin', value: '*' },
-      { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, DELETE, OPTIONS' },
-      { key: 'Access-Control-Allow-Headers', value: 'Content-Type, X-Payment' },
-    ],
-  }];
-}
-```
-
-For production, restrict origins:
-```javascript
-{ key: 'Access-Control-Allow-Origin', value: 'https://yourdomain.com' }
+3. **Update matcher** in `middleware.ts`:
+```typescript
+export const config = {
+  matcher: [
+    '/api/paid/:path*',
+    '/paid/:path*',
+    '/api/my-feature/:path*',  // Add your route
+  ],
+};
 ```
 
 ---
 
 ## 📚 Resources
 
-### Official Documentation
-- 📖 [x402 Protocol Documentation](https://docs.cdp.coinbase.com/x402/welcome)
-- 📖 [x402 Quickstart for Sellers](https://docs.cdp.coinbase.com/x402/quickstart-for-sellers)
-- 📖 [x402 Quickstart for Buyers](https://docs.cdp.coinbase.com/x402/quickstart-for-buyers)
-- 📖 [Network & Token Support](https://docs.cdp.coinbase.com/x402/network-support)
-- 📖 [How x402 Works](https://docs.cdp.coinbase.com/x402/core-concepts/how-it-works)
+### Official x402 Documentation
+- 📖 [x402 Protocol Docs](https://docs.cdp.coinbase.com/x402/welcome)
+- 📖 [Quickstart for Sellers](https://docs.cdp.coinbase.com/x402/quickstart-for-sellers)
+- 📖 [Quickstart for Buyers](https://docs.cdp.coinbase.com/x402/quickstart-for-buyers)
+- 📖 [Network Support](https://docs.cdp.coinbase.com/x402/network-support)
 
 ### NPM Packages
 - 📦 [x402-next](https://www.npmjs.com/package/x402-next) - Next.js middleware
 - 📦 [x402-express](https://www.npmjs.com/package/x402-express) - Express middleware
-- 📦 [x402-fetch](https://www.npmjs.com/package/x402-fetch) - Client-side wrapper
+- 📦 [x402-fetch](https://www.npmjs.com/package/x402-fetch) - Client wrapper
 
 ### Base Network
 - 🔗 [Base Official Site](https://base.org)
-- 🔗 [Base Documentation](https://docs.base.org)
+- 🔗 [Base Docs](https://docs.base.org)
 - 🔗 [Base Bridge](https://bridge.base.org)
-- 🔗 [BaseScan Explorer](https://basescan.org)
-- 🔗 [Base Sepolia Explorer](https://sepolia.basescan.org)
-
-### Faucets (Testnet Only)
-- 💧 [Base Sepolia Faucet](https://docs.base.org/tools/network-faucets)
-- 💧 [Alchemy Base Sepolia Faucet](https://www.alchemy.com/faucets/base-sepolia)
-- 💧 [Circle USDC Faucet](https://faucet.circle.com)
-
-### Code Examples
-- 💻 [x402 GitHub Repository](https://github.com/coinbase/x402)
-- 💻 [QuickNode x402 Tutorial](https://www.quicknode.com/guides/infrastructure/how-to-use-x402-payment-required)
-- 💻 [x402 AI Starter Template](https://vercel.com/new/templates/ai/x402-ai-starter)
+- 🔗 [BaseScan](https://basescan.org)
 
 ### Community
 - 💬 [Base Discord](https://base.org/discord)
-- 💬 [Coinbase Developer Forum](https://forums.coinbase.com)
+- 💬 [Coinbase Dev Forum](https://forums.coinbase.com)
 - 🐦 [Base Twitter](https://twitter.com/base)
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
 
 ---
 
 ## 📄 License
 
-MIT License - See LICENSE file for details
+MIT License
 
 ---
 
-## 🙏 Acknowledgments
+## 🙏 Credits
 
-- [Coinbase](https://www.coinbase.com) for the x402 protocol
-- [Base](https://base.org) for the L2 network
-- [Next.js](https://nextjs.org) team
-- The Web3 community
+- [Coinbase](https://www.coinbase.com) - x402 protocol
+- [Base](https://base.org) - L2 blockchain
+- [Next.js](https://nextjs.org) - React framework
 
 ---
 
-**Built with ❤️ using x402 Protocol**
+**Part 1**: Production RPC → Use our endpoint  
+**Part 2**: Starter Kit → Build your own
 
-Version: 0.1.0  
-Network: Base (Mainnet & Sepolia supported)  
-Status: Production Ready ✅
+Questions? Open an issue on GitHub
 
-For questions: Open an issue on GitHub
+**Version**: 0.1.0 | **Status**: Production Ready ✅
