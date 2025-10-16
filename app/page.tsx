@@ -8,7 +8,7 @@ export default function HomePage() {
 
   const connectWallet = async () => {
     if (typeof window !== 'undefined' && (window as any).ethereum) {
-      try:
+      try {
         const accounts = await (window as any).ethereum.request({
           method: 'eth_requestAccounts',
         });
@@ -300,7 +300,7 @@ export default function HomePage() {
             wordBreak: 'break-all',
             margin: '1rem 0'
           }}>
-            0x742d35Cc6634C0532925a3b8D0c8f5F4d4fD8000
+            0xa51cA7B57F3b4eFDB2e72A738cda1688cf9cbA2D
           </code>
           <p style={{fontSize: '14px', color: '#666'}}>
             Payments will be sent to this address.

@@ -6,8 +6,8 @@ export const config = {
   matcher: ['/api/paid/:path*', '/paid/:path*'],
 };
 
-// REPLACE this address with YOUR address that will receive USDC
-const RECEIVER_ADDRESS = '0x742d35Cc6634C0532925a3b8D0c8f5F4d4fD8000'; // CHANGE THIS ADDRESS!
+// Address that receives USDC payments from x402 requests
+const RECEIVER_ADDRESS = '0xa51cA7B57F3b4eFDB2e72A738cda1688cf9cbA2D';
 
 export default paymentMiddleware(
   RECEIVER_ADDRESS,                  
