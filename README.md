@@ -129,7 +129,9 @@ cp env.example .env.local
 # RECEIVER_ADDRESS=0xYourAddressHere
 ```
 
-### Running the App
+### Running the App 
+
+WARNING: It's only a test app for those who want to try on Base Sepolia before Mainnet!
 
 ```bash
 # Development mode
